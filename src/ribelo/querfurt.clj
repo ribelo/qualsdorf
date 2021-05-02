@@ -1,7 +1,5 @@
 (ns ribelo.querfurt
   (:require
-   [uncomplicate.fluokitten.core :as fk]
-   [uncomplicate.fluokitten.jvm]
    [ribelo.halle :as h]
    [ribelo.kemnath :as math]
    [ribelo.stade :as st]))
@@ -10,74 +8,89 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (comment
-  (do (require '[criterium.core :refer [quick-bench]])
+  (do #_(require '[criterium.core :refer [quick-bench]])
       (def data (vec (repeatedly 100000 #(/ (- 0.5 ^double (rand)) 10.0))))
-      (def arr  (double-array data))))
+      (def arr  (double-array data))
+      (def X [0.003,0.026,0.015,-0.009,0.014,0.024,0.015,0.066,-0.014,0.039])))
 
 (defn ann-return-geometric
-  ^double [^long freq ret]
-  (let [^doubles axs    (h/seq->double-array ret)
-        n      (alength ^doubles axs)
-        return (fk/fold * (fk/fmap #(+ ^double % 1.0) axs))]
-    (- (math/pow return (/ freq n)) 1.0)))
+  (^double [           ret] (ann-return-geometric 252 ret))
+  (^double [^long freq ret]
+   (let [^doubles arr (h/->double-array ret)
+         n            (alength ^doubles arr)
+         return       (h/reduce * (h/map #(+ ^double % 1.0) arr))]
+     (- (math/pow return (/ freq n)) 1.0))))
+
+(comment
+  (ann-return-geometric 12 X))
 
 (defn ann-return-simple
-  ^double [^long freq ret]
-  (let [^doubles arr (h/seq->double-array ret)
-        mean (st/mean arr)]
-    (* mean freq)))
+  (^double [           ret] (ann-return-simple 252 ret))
+  (^double [^long freq ret]
+   (let [^doubles arr (h/->double-array ret)
+         mean         (st/mean arr)]
+     (* mean freq))))
 
 (defn annualized-return
-  "Average annualized returns over a period, convenient when comparing returns.
-  It can be an Arithmetic or Geometric (default) average return: if compounded with itself the
+  "average annualized returns over a period, convenient when comparing returns.
+  it can be an arithmetic or geometric (default) average return: if compounded with itself the
   geometric average will be equal to the cumulative return"
-  ^double [^long freq mode ret]
-  (case mode
-    :geometric (ann-return-geometric freq ret)
-    :simple    (ann-return-simple freq ret)))
+  (^double [                ret] (annualized-return 252  :geometric ret))
+  (^double [^long freq      ret] (annualized-return freq :geometric ret))
+  (^double [^long freq mode ret]
+   (case mode
+     :geometric (ann-return-geometric freq ret)
+     :simple    (ann-return-simple freq ret))))
 
-;; (defn active-return ;; TODO
-;;   "Asset/Portfolio annualized return minus Benchmark annualized return"
-;;   ([xs freq mode]
-;;    (let [xs' (sequence (annualized-return freq mode) xs)]
-;;      (comp
-;;       (annualized-return freq mode)
-;;       (emath/sub xs')))))
+(defn active-return
+  "asset/portfolio annualized return minus benchmark annualized return"
+  (^double [                r1 r2] (active-return 252  :geometric r1 r2))
+  (^double [^long freq      r1 r2] (active-return freq :geometric r1 r2))
+  (^double [^long freq mode r1 r2]
+   (- (annualized-return freq mode r1)
+      (annualized-return freq mode r2))))
 
 (defn annualized-risk
-  "Annualized standard deviation of asset/portfolio returns"
-  ^double [^long freq ret]
-  (let [arr (h/seq->double-array ret)]
-    (* (st/std ^doubles arr) (math/sqrt freq))))
+  "annualized standard deviation of asset/portfolio returns"
+  (^double [           ret] (annualized-risk 252 ret))
+  (^double [^long freq ret]
+   (let [arr (h/->double-array ret)]
+     (* (st/std ^doubles arr) (math/sqrt freq)))))
 
 (defn sharpe-ratio
-  "Sharpe Ratio.Compute Sharpe ratio for an collection XS of values (daily, weekly, etc) and
-   a free-risk rate. Annual free-risk must be divided to match the right timeframe."
-  ^double [^double frisk ^long freq ret]
-  (let [^doubles arr (-> (h/seq->double-array ret) (h/take-last freq))
-        mean         (st/mean arr)
-        std          (st/std arr)]
-    (/ (- mean frisk) std)))
+  "sharpe ratio.compute sharpe ratio for an collection xs of values (daily, weekly, etc) and
+   a free-risk rate. annual free-risk must be divided to match the right timeframe."
+  (^double [                         ret] (sharpe-ratio 0.0  252 ret))
+  (^double [              ^long freq ret] (sharpe-ratio 0.0 freq ret))
+  (^double [^double frisk ^long freq ret]
+   (let [^doubles arr (->> (h/->double-array ret) (h/take-last freq))
+         mean         (st/mean arr)
+         std          (st/std arr)]
+     (/ (- mean frisk) std))))
 
 (defn annualized-sharpe-ratio
-  ^double [^double frisk ^long freq ret]
-  (let [ann-ret (ann-return-geometric freq ret)
-        std     (annualized-risk freq ret)]
-    (/ (- ann-ret frisk) std)))
+  (^double [                         ret] (annualized-sharpe-ratio 0.0  252 ret))
+  (^double [              ^long freq ret] (annualized-sharpe-ratio 0.0 freq ret))
+  (^double [^double frisk ^long freq ret]
+   (let [ann-ret (ann-return-geometric freq ret)
+         std     (annualized-risk freq ret)]
+     (/ (- ann-ret frisk) std))))
 
-;; (defn adjusted-sharpe-ratio ;;TODO
-;;   "Sharpe Ratio adjusted for skewness and kurtosis with a penalty factor
-;;    for negative skewness and excess kurtosis."
-;;   ([^double frisk]
-;;    (comp
-;;     (x/transjuxt [(sharpe-ratio frisk) st/skewness st/kurtosis])
-;;     (x/reduce
-;;      (fn
-;;        ([] (transient []))
-;;        ([[sr sk ku]] (* sr (- (+ 1 (* (/ sk 6) sr))
-;;                               (* (/ (- ku 3) 24) (math/sqrt sr)))))
-;;        ([acc [sr sk ku]] (-> acc (conj! sr) (conj! sk) (conj! ku)))))))
-;;   ([] (adjusted-sharpe-ratio 0.0)))
+(defn adjusted-sharpe-ratio ;
+  "sharpe ratio adjusted for skewness and kurtosis with a penalty factor
+   for negative skewness and excess kurtosis."
+  ([                         ret] (adjusted-sharpe-ratio 0.0  252 ret))
+  ([              ^long freq ret] (adjusted-sharpe-ratio 0.0 freq ret))
+  ([^double frisk ^long freq ret]
+   (let [arr (h/->double-array ret)
+         sr  (sharpe-ratio frisk freq arr)
+         sk  (st/skewness arr)
+         ku  (st/kurtosis arr)]
+     (- (* sr (+ 1 (/ sk 6.0)) sr)
+        (* (/ (- ku 3) 24)
+           (math/sqrt sr))))))
+
+(adjusted-sharpe-ratio (/ 0.2 12) 10 [0.003,0.026,0.015,-0.009,0.014,0.024,0.015,0.066,-0.014,0.039])
 
 ;; (defn annualized-adjusted-sharpe-ratio ;;TODO
 ;;   "Sharpe Ratio adjusted for skewness and kurtosis with a penalty factor
@@ -107,8 +120,8 @@
   "Downside Risk or Semi-Standard Deviation.
    Measures the variability of underperformance below a minimum target rate"
   ^double [^double mar ret]
-  (let [^doubles arr (h/seq->double-array ret)
-        n   (alength ^doubles arr)]
+  (let [^doubles arr (h/->double-array ret)
+        n            (alength ^doubles arr)]
     (loop [i 0 sum 0.0]
       (if (< i n)
         (recur (inc i)
@@ -119,7 +132,7 @@
 (defn sortino-ratio
   "Sortino ratio"
   ^double [^double frisk ^double mar ret]
-  (let [^doubles arr (h/seq->double-array ret)
+  (let [^doubles arr (h/->double-array ret)
         dr           (downside-risk mar arr)
         mean         (st/mean arr)]
     (/ (- mean frisk) dr)))
@@ -127,7 +140,7 @@
 (defn drawdown
   "Drawdowon from Peak. Any continuous losing return period."
   ^doubles [ret]
-  (let [^doubles arr (h/seq->double-array ret)
+  (let [^doubles arr (h/->double-array ret)
         n            (alength ^doubles arr)
         r            (double-array n)]
     (loop [i 0 s 1.0 mx 1.0]
@@ -141,7 +154,7 @@
 
 (defn continuous-drawdown
   ^doubles [ret]
-  (let [^doubles arr (h/seq->double-array ret)
+  (let [^doubles arr (h/->double-array ret)
         n            (alength arr)
         dq           (java.util.ArrayDeque.)]
     (loop [i 0 s 1.0]
@@ -168,13 +181,13 @@
 
 (defn average-drawdown
   ^double [ret]
-  (let [^doubles arr (h/seq->double-array ret)]
+  (let [^doubles arr (h/->double-array ret)]
     (->> (continuous-drawdown arr)
          (st/mean))))
 
 (defn maximum-drawdown
   ^double [ret]
-  (let [^doubles arr (h/seq->double-array ret)]
+  (let [^doubles arr (h/->double-array ret)]
     (->> (continuous-drawdown arr)
          (st/max))))
 
@@ -182,9 +195,9 @@
   "Simple rate of return calculated from the last and the first value of
   an array of numbers."
   ^double [ret]
-  (let [^doubles arr (as-> (h/seq->double-array ret) $
-                       (fk/fmap #(+ 1.0 ^double %) $)
-                       (h/reductions $ *))
+  (let [^doubles arr (as-> (h/->double-array ret) $
+                       (h/map #(+ 1.0 ^double %) $)
+                       (h/reductions * $))
         l            (h/last arr)
         f            (h/first arr)]
     (- (/ ^double l ^double f) 1.0)))
@@ -193,7 +206,7 @@
   "Simple rate of chane calculated from the last and the first value of
   an array of numbers."
   ^double [^long n ret]
-  (let [^doubles arr (h/seq->double-array ret)
+  (let [^doubles arr (h/->double-array ret)
         c            (alength arr)]
     (if (< n c)
       (let [l (h/last arr)
@@ -204,7 +217,7 @@
 (defn cagr
   "Compound annual growth rate"
   ^double [^double n ret]
-  (let [^doubles arr (h/seq->double-array ret)]
+  (let [^doubles arr (h/->double-array ret)]
     (- (math/pow
         (+ 1.0
            (rate-of-return arr))
@@ -215,7 +228,7 @@
   "A risk-adjusted measure like Sharpe ratio that uses maximum drawdown instead of
   standard deviation for risk."
   [^double frisk ^long freq ret]
-  (let [^doubles arr (h/seq->double-array ret)
+  (let [^doubles arr (h/->double-array ret)
         maxdd        (maximum-drawdown ret)
         annret       (ann-return-geometric freq arr)]
     (/ (- annret frisk) maxdd)))
@@ -357,14 +370,14 @@
 
 (defn rolling-economic-drawndown
   ^double [^long freq ret]
-  (let [^doubles arr (-> (h/seq->double-array ret) (h/take-last freq))
+  (let [^doubles arr (->> (h/->double-array ret) (h/take-last freq))
         mx           (st/max ^doubles arr)]
     (- 1.0 (/ ^double (h/last arr) mx))))
 
 (defn tick->ret
   "Convert a value series to a return series"
   ^doubles [close]
-  (let [^doubles arr (h/seq->double-array close)
+  (let [^doubles arr (h/->double-array close)
         n            (alength arr)
         nn           (dec n)
         r            (double-array (dec n))]
@@ -379,7 +392,7 @@
 
 (defn redp-single-allocation
   ^double [^double frisk ^double risk ^long freq close]
-  (let [^doubles close* (h/seq->double-array close)
+  (let [^doubles close* (h/->double-array close)
         ret             (tick->ret close*)
         redp            (rolling-economic-drawndown freq close*)
         std             (annualized-risk freq ret)
@@ -391,7 +404,7 @@
                                                 (- 1.0 redp))))))))
 
 (defn- redp-stats [^double frisk ^double risk ^long freq ^doubles close]
-  (let [close*  (h/seq->double-array close)
+  (let [close*  (h/->double-array close)
         ret     (tick->ret close*)
         std     (annualized-risk freq ret)
         ann-ret (ann-return-geometric freq ret)
@@ -406,8 +419,14 @@
   ([frisk risk freq assets]
    (let [[volatility
           drift
-          Y]            (apply map vector (fk/fmap (partial redp-stats frisk risk freq) assets))
-         inv-volatility (fk/fmap #(math/pow % -1.0) volatility)
-         matrix         (fk/fmap (comp math/round *) inv-volatility drift inv-volatility Y)
-         sum            (fk/fold + matrix)]
-     (if (<= ^double sum 1.0) matrix (fk/fmap #(/ ^double % ^double sum) matrix)))))
+          Y]            (h/transpose (mapv (partial redp-stats frisk risk freq) assets))
+         inv-volatility (h/map #(math/pow % -1.0) volatility)
+         matrix         (h/map (comp math/round *) inv-volatility drift inv-volatility Y)
+         sum            (h/reduce + matrix)]
+     (if (<= ^double sum 1.0) matrix (h/map #(/ ^double % ^double sum) matrix)))))
+
+(comment
+  (h/map (comp math/round *)
+         [1 2 3]
+         [1 2 3]
+         [1 2 3]))

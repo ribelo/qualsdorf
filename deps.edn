@@ -1,10 +1,7 @@
 {:paths ["src"]
- :deps  {uncomplicate/fluokitten        {:mvn/version "0.9.1"}
-         com.github.haifengl/smile-core {:mvn/version "2.6.0"}
-         com.github.haifengl/smile-math {:mvn/version "2.6.0"}
-         ribelo/halle                   {:git/url "https://github.com/ribelo/halle"
-                                         :sha     "46c7577e5dfbe84cac00f93ce5d605a38a490b98"}
+ :deps  {ribelo/halle                   {:git/url "https://github.com/ribelo/halle"
+                                         :sha     "ca02710fab190a5e17f03e90219bdde6b926adfe"}
          ribelo/kemnath                 {:git/url "https://github.com/ribelo/kemnath"
-                                         :sha     "7fae2514a43c3de07a5a173319a9ee7065989dcf"}
+                                         :sha     "69cbe5d773691edb659f6079f9afe1c7663f34d4"}
          ribelo/stade                   {:git/url "https://github.com/ribelo/stade"
-                                         :sha     "5b01e968203d6d12e710ed5aef266f36e0588089"}}}
+                                         :sha     "8ef864754709cc273932a81d331f7ed70dc7caf4"}}}
