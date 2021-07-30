@@ -1,7 +1,11 @@
 {:paths ["src"]
- :deps  {ribelo/halle                   {:git/url "https://github.com/ribelo/halle"
-                                         :sha     "ca02710fab190a5e17f03e90219bdde6b926adfe"}
-         ribelo/kemnath                 {:git/url "https://github.com/ribelo/kemnath"
-                                         :sha     "69cbe5d773691edb659f6079f9afe1c7663f34d4"}
-         ribelo/stade                   {:git/url "https://github.com/ribelo/stade"
-                                         :sha     "8ef864754709cc273932a81d331f7ed70dc7caf4"}}}
+ :deps  {ribelo/halle                   {:local/root "../halle"}
+         ;; ribelo/halle                   {:git/url "https://github.com/ribelo/halle"
+         ;;                                 :sha     "ca02710fab190a5e17f03e90219bdde6b926adfe"}
+         ribelo/kemnath                 {:local/root "../kemnath"}
+         ;; ribelo/kemnath                 {:git/url "https://github.com/ribelo/kemnath"
+         ;;                                 :sha     "69cbe5d773691edb659f6079f9afe1c7663f34d4"}
+         ribelo/stade                   {:local/root "../stade"}
+         }
+ :aliases
+ {:cljs  {:extra-deps {thheller/shadow-cljs {:mvn/version "2.14.3"}}}}}
